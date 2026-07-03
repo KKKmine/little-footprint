@@ -3,6 +3,7 @@ var constants = {
   _mapTitle: 'Storymap Title',
   _mapSubtitle: 'Storymap Subtitle',
   _mapLogo: 'Storymap Logo',
+  _mapBanner: 'Storymap Banner',
   // Credits
 	_authorName: 'Author Name',
 	_authorURL: 'Author Email or Website',

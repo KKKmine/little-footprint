@@ -17,7 +17,7 @@
 
   #title {
     width: 60vw;
-    max-width: 500px;
+    max-width: 485px; /* scrollbar 15px */
     top: 0;
   }
 

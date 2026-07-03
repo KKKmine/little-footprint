@@ -7,12 +7,15 @@ $(window).on('load', function() {
   // First, try reading Options.csv
   $.get('csv/Options.csv', function(options) {
 
-    $.get('csv/Chapters.csv', function(chapters) {
-      initMap(
-        $.csv.toObjects(options),
-        $.csv.toObjects(chapters)
-      )
-    }).fail(function(e) { alert('Found Options.csv, but could not read Chapters.csv') });
+    $.get('csv/Journey.csv', function(options) {
+
+      $.get('csv/Chapters.csv', function(chapters) {
+        initMap(
+          $.csv.toObjects(options),
+          $.csv.toObjects(journeys),
+          $.csv.toObjects(chapters)
+        )
+      })}).fail(function(e) { alert('Found Options.csv, but could not read Chapters.csv') });
 
   // If not available, try from the Google Sheet
   }).fail(function(e) {
@@ -31,9 +34,10 @@ $(window).on('load', function() {
 
         $.when(
           $.getJSON(apiUrl + spreadsheetId + '/values/Options?key=' + googleApiKey),
+          $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
           $.getJSON(apiUrl + spreadsheetId + '/values/Chapters?key=' + googleApiKey),
-        ).then(function(options, chapters) {
-          initMap(parse(options), parse(chapters))
+        ).then(function(options, journeys, chapters) {
+          initMap(parse(options), parse(journeys), parse(chapters))
         })
 
       } else {
@@ -102,14 +106,17 @@ $(window).on('load', function() {
     }
   }
 
-  function initMap(options, chapters) {
+  function initMap(options, journeys, chapters) {
+    /* TODO: Will add front page to select journey */
+    var j = journeys[0];
+
     createDocumentSettings(options);
 
     var chapterContainerMargin = 70;
 
     document.title = getSetting('_mapTitle');
     $('#header').append('<h1>' + (getSetting('_mapTitle') || '') + '</h1>');
-    $('#header').append('<h2>' + (getSetting('_mapSubtitle') || '') + '</h2>');
+    $('#header').append('<h2>' + (getSetting('_mapSubtitle') || '') + getSetting('_mapBanner'));
 
     // Add logo
     if (getSetting('_mapLogo')) {
@@ -117,7 +124,6 @@ $(window).on('load', function() {
       $('#top').css('height', '60px');
     } else {
       $('#logo').css('display', 'none');
-      $('#header').css('padding-top', '25px');
     }
 
     // Load tiles
@@ -424,6 +430,12 @@ $(window).on('load', function() {
               animate: true,
               duration: 2, // default is 2 seconds
             });
+          } else if (i == 0) {
+            // Fly to map bound if no location be set on chapter header
+            map.flyToBounds(bounds, {
+              animate: true,
+              duration: 2, // default is 2 seconds
+            });
           }
 
           // No need to iterate through the following chapters
@@ -467,6 +479,15 @@ $(window).on('load', function() {
       });
     }
 
+    /* Render the range of this journey. */
+    L.ellipse([j['Center Latitude'], j['Center Longitude']], [j['Semi-Major Axis'], j['Semi-Minor Axis']], j['Orientation'], {
+        color: '#3388ff',
+        weight: 2,
+        fillColor: '#3388ff',
+        fillOpacity: 0
+      }
+    ).addTo(map);
+
     var bounds = [];
     for (i in markers) {
       if (markers[i]) {
@@ -489,8 +510,9 @@ $(window).on('load', function() {
     $('div#contents').animate({scrollTop: '1px'});
 
     // On first load, check hash and if it contains an number, scroll down
-    if (parseInt(location.hash.substr(1))) {
-      var containerId = parseInt( location.hash.substr(1) ) - 1;
+    let viewChapter = parseInt(location.hash.substr(1));
+    if (viewChapter && viewChapter != 1) {
+      var containerId = viewChapter - 1;
       $('#contents').animate({
         scrollTop: $('#container' + containerId).offset().top
       }, 1000);
