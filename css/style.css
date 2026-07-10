@@ -82,8 +82,8 @@ body {
 .img-container {
   margin: 0;
   margin-bottom: 5px;
-  height: 200px;
-  max-height: 200px;
+  height: 300px;
+  max-height: 300px;
   width: 100%;
   
   /* For the anchor point of material-icons */

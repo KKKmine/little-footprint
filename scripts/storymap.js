@@ -1,11 +1,13 @@
 $(window).on('load', function() {
+
   var documentSettings = {};
+  var markerLayer = L.layerGroup().addTo(map);
 
   // Some constants, such as default settings
   const CHAPTER_ZOOM = 15;
 
   // First, try reading Options.csv
-  $.get('csv/Options.csv', function(options) {
+  /*$.get('csv/Options.csv', function(options) {
 
     $.get('csv/Journey.csv', function(options) {
 
@@ -18,10 +20,10 @@ $(window).on('load', function() {
       })}).fail(function(e) { alert('Found Options.csv, but could not read Chapters.csv') });
 
   // If not available, try from the Google Sheet
-  }).fail(function(e) {
+  }).fail(function(e) {*/
 
     var parse = function(res) {
-      return Papa.parse(Papa.unparse(res[0].values), {header: true} ).data;
+      return Papa.parse(Papa.unparse(res.values), {header: true} ).data;
     }
 
     // First, try reading data from the Google Sheet
@@ -32,13 +34,29 @@ $(window).on('load', function() {
         var apiUrl = 'https://sheets.googleapis.com/v4/spreadsheets/'
         var spreadsheetId = googleDocURL.split('/d/')[1].split('/')[0];
 
-        $.when(
-          $.getJSON(apiUrl + spreadsheetId + '/values/Options?key=' + googleApiKey),
-          $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
-          $.getJSON(apiUrl + spreadsheetId + '/values/Chapters?key=' + googleApiKey),
-        ).then(function(options, journeys, chapters) {
-          initMap(parse(options), parse(journeys), parse(chapters))
-        })
+        if (location.hash) {
+          var name = location.hash.substr(1);
+          $.when(
+            $.getJSON(apiUrl + spreadsheetId + '/values/Options?key=' + googleApiKey),
+            $.getJSON(apiUrl + spreadsheetId + '/values/' + name + '?key=' + googleApiKey),
+          ).then(function(options, chapters) {
+            createDocumentSettings(parse(options[0]));
+            initMap();
+            initJourney(parse(chapters[0]));
+          }).fail(function() { 
+            location.hash = '';
+            location.reload();
+          })
+        } else {
+          $.when(
+            $.getJSON(apiUrl + spreadsheetId + '/values/Options?key=' + googleApiKey),
+            $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
+          ).then(function(options, journey) {
+            createDocumentSettings(parse(options[0]));
+            initMap();
+            initSummury(parse(journey[0]));
+          })
+        }
 
       } else {
         alert('You load data from a Google Sheet, you need to add a free Google API key')
@@ -48,8 +66,32 @@ $(window).on('load', function() {
       alert('You need to specify a valid Google Sheet (googleDocURL)')
     }
 
-  })
+  //})
 
+  $(window).on('hashchange', function() {
+    var page = location.hash;
+  
+    $('div.loader').css('visibility', 'visible');    
+    markerLayer.clearLayers();
+  
+    if (location.hash) {
+      var name = location.hash.substr(1);
+      $.when(
+        $.getJSON(apiUrl + spreadsheetId + '/values/' + name + '?key=' + googleApiKey),
+      ).then(function(chapters) {
+        initJourney(parse(chapters));
+      }).fail(function() { 
+        //location.hash = '';
+        //location.reload();
+      })
+    } else {
+      $.when(
+        $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
+      ).then(function(journey) {
+        initSummury(parse(journey));
+      })
+    }
+  });
 
 
   /**
@@ -105,92 +147,69 @@ $(window).on('load', function() {
       }).addTo(map);
     }
   }
-
-  function initMap(options, journeys, chapters) {
-    /* TODO: Will add front page to select journey */
-    var j = journeys[0];
-
-    createDocumentSettings(options);
-
-    var chapterContainerMargin = 70;
-
-    document.title = getSetting('_mapTitle');
-    $('#header').append('<h1>' + (getSetting('_mapTitle') || '') + '</h1>');
-    $('#header').append('<h2>' + (getSetting('_mapSubtitle') || '') + getSetting('_mapBanner'));
-
-    // Add logo
-    if (getSetting('_mapLogo')) {
-      $('#logo').append('<img src="' + getSetting('_mapLogo') + '" />');
-      $('#top').css('height', '60px');
-    } else {
-      $('#logo').css('display', 'none');
-    }
-
-    // Load tiles
-    addBaseMap();
-
-    // Add zoom controls if needed
-    if (getSetting('_zoomControls') !== 'off') {
-      L.control.zoom({
-        position: getSetting('_zoomControls')
-      }).addTo(map);
-    }
-
+  
+  function addMarkers(chapters) {
+    var content;
+    var chapterCount = 0; 
     var markers = [];
-
-    var markActiveColor = function(k) {
-      /* Removes marker-active class from all markers */
-      for (var i = 0; i < markers.length; i++) {
-        if (markers[i] && markers[i]._icon) {
-          markers[i]._icon.className = markers[i]._icon.className.replace(' marker-active', '');
-
-          if (i == k) {
-            /* Adds marker-active class, which is orange, to marker k */
-            markers[k]._icon.className += ' marker-active';
-          }
-        }
-      }
-    }
-
-    var pixelsAbove = [];
-    var chapterCount = 0;
-
-    var currentlyInFocus; // integer to specify each chapter is currently in focus
-    var overlay;  // URL of the overlay for in-focus chapter
-    var geoJsonOverlay;
+    //var latLngs = [];
 
     for (i in chapters) {
+
       var c = chapters[i];
+      var lat = parseFloat(c['Latitude']);
+      var lon = parseFloat(c['Longitude']);
 
-      if ( !isNaN(parseFloat(c['Latitude'])) && !isNaN(parseFloat(c['Longitude']))) {
-        var lat = parseFloat(c['Latitude']);
-        var lon = parseFloat(c['Longitude']);
-
+      if (!isNaN(lat) && !isNaN(lon)) {
         if (c['Marker'] === 'Numbered') {
           chapterCount += 1;
+          content = String(chapterCount);
+        } else if (c['Marker'] === 'Plain') {
+          content = '';
         } else if (c['Marker'] !== '' && Number.isInteger(+c['Marker'])) {
           chapterCount = +c['Marker'];
+          content = String(chapterCount);
+        } else {
+          content = c['Marker']
         }
 
-        markers.push(
-          L.marker([lat, lon], {
-            icon: L.ExtraMarkers.icon({
-              icon: 'fa-number',
-              number: c['Marker'] === 'Numbered'
-                ? chapterCount
-                : (c['Marker'] === 'Plain'
-                  ? ''
-                  : c['Marker']), 
-              markerColor: c['Marker Color'] || 'blue'
-            }),
-            opacity: c['Marker'] === 'Hidden' ? 0 : 0.9,
-            interactive: c['Marker'] === 'Hidden' ? false : true,
-          }
-        ));
+        let m = L.marker([lat, lon], {
+          icon: L.ExtraMarkers.icon({
+            icon: 'fa-number',
+            number: content, 
+            markerColor: c['Marker Color'] || 'blue'
+          }),
+          opacity: c['Marker'] === 'Hidden' ? 0 : 0.9,
+          interactive: c['Marker'] === 'Hidden' ? false : true,
+        });
 
+        if (c['Location'] && c['Marker'] != "Hidden") {
+          m['_mapLink'] = 'https://www.google.com/maps/search/?api=1&query=' +  c['Location'] + '&center=' + c['Latitude'] + ',' + c['Longitude'];
+        }
+        
+        /*if (c['Marker'] != 'Hidden') {
+          latLngs.push([lat, lon]);
+        }*/
+        markers.push(m);
       } else {
         markers.push(null);
       }
+    }
+
+    /*routeLine = L.polyline(latLngs, {
+      color: 'blue',
+      weight: 5,
+      opacity: 0.8,
+      snakingSpeed: 200
+    }).addTo(map);
+    routeLine.snakeIn();*/
+    return markers;
+  }
+
+  function addChapters(chapters) {
+    for (i in chapters) {
+
+      var c = chapters[i];
 
       // Add chapter container
       var container = $('<div></div>', {
@@ -307,153 +326,83 @@ $(window).on('load', function() {
         .append(mediaContainer != null ? source : '')
         .append('<p class="description">' + c['Description'] + '</p>');
 
-      $('#contents').append(container);
+      $('#chapters').append(container);
 
+    }
+  }
+
+  function addOverlay(c) {
+    // Add chapter's overlay tiles if specified in options
+    if (c['Overlay']) {
+
+      var opacity = parseFloat(c['Overlay Transparency']) || 1;
+      var url = c['Overlay'];
+
+      if (url.split('.').pop() === 'geojson') {
+        $.getJSON(url, function(geojson) {
+          overlay = L.geoJson(geojson, {
+            style: function(feature) {
+              return {
+                fillColor: feature.properties.fillColor || '#ffffff',
+                weight: feature.properties.weight || 1,
+                opacity: feature.properties.opacity || opacity,
+                color: feature.properties.color || '#cccccc',
+                fillOpacity: feature.properties.fillOpacity || 0.5,
+              }
+            }
+          }).addTo(map);
+        });
+      } else {
+        overlay = L.tileLayer(c['Overlay'], { opacity: opacity }).addTo(map);
+      }
+
+    }
+  }
+
+  function addGeoJsonOverlay(c) {
+    if (c['GeoJSON Overlay']) {
+      $.getJSON(c['GeoJSON Overlay'], function(geojson) {
+
+        // Parse properties string into a JS object
+        var props = {};
+
+        if (c['GeoJSON Feature Properties']) {
+          var propsArray = c['GeoJSON Feature Properties'].split(';');
+          var props = {};
+          for (var p in propsArray) {
+            if (propsArray[p].split(':').length === 2) {
+              props[ propsArray[p].split(':')[0].trim() ] = propsArray[p].split(':')[1].trim();
+            }
+          }
+        }
+
+        geoJsonOverlay = L.geoJson(geojson, {
+          style: function(feature) {
+            return {
+              fillColor: feature.properties.fillColor || props.fillColor || '#ffffff',
+              weight: feature.properties.weight || props.weight || 1,
+              opacity: feature.properties.opacity || props.opacity || 0.5,
+              color: feature.properties.color || props.color || '#cccccc',
+              fillOpacity: feature.properties.fillOpacity || props.fillOpacity || 0.5,
+            }
+          }
+        }).addTo(markerLayer);
+      });
+    }
+  }
+
+  function initMap() {
+    // Load tiles
+    addBaseMap();
+
+    // Add zoom controls if needed
+    if (getSetting('_zoomControls') !== 'off') {
+      L.control.zoom({
+        position: getSetting('_zoomControls')
+      }).addTo(map);
     }
 
     changeAttribution();
-
-    /* Change image container heights */
-    imgContainerHeight = parseInt(getSetting('_imgContainerHeight'));
-    if (imgContainerHeight > 0) {
-      $('.img-container').css({
-        'height': imgContainerHeight + 'px',
-        'max-height': imgContainerHeight + 'px',
-      });
-    }
-
-    // For each block (chapter), calculate how many pixels above it
-    pixelsAbove[0] = -100;
-    for (i = 1; i < chapters.length; i++) {
-      pixelsAbove[i] = pixelsAbove[i-1] + $('div#container' + (i-1)).height() + chapterContainerMargin;
-    }
-    pixelsAbove.push(Number.MAX_VALUE);
-
-    $('div#contents').scroll(function() {
-      var currentPosition = $(this).scrollTop();
-
-      // Make title disappear on scroll
-      if (currentPosition < 200) {
-        $('#title').css('opacity', 1 - Math.min(1, currentPosition / 100));
-      }
-
-      for (var i = 0; i < pixelsAbove.length - 1; i++) {
-
-        if ( currentPosition >= pixelsAbove[i]
-          && currentPosition < (pixelsAbove[i+1] - 2 * chapterContainerMargin)
-          && currentlyInFocus != i
-        ) {
-
-          // Update URL hash
-          location.hash = i + 1;
-
-          // Remove styling for the old in-focus chapter and
-          // add it to the new active chapter
-          $('.chapter-container').removeClass("in-focus").addClass("out-focus");
-          $('div#container' + i).addClass("in-focus").removeClass("out-focus");
-
-          currentlyInFocus = i;
-          markActiveColor(currentlyInFocus);
-
-          // Remove overlay tile layer if needed
-          if (overlay && map.hasLayer(overlay)) {
-            map.removeLayer(overlay);
-          }
-
-          // Remove GeoJson Overlay tile layer if needed
-          if (geoJsonOverlay && map.hasLayer(geoJsonOverlay)) {
-            map.removeLayer(geoJsonOverlay);
-          }
-
-          var c = chapters[i];
-
-          // Add chapter's overlay tiles if specified in options
-          if (c['Overlay']) {
-
-            var opacity = parseFloat(c['Overlay Transparency']) || 1;
-            var url = c['Overlay'];
-
-            if (url.split('.').pop() === 'geojson') {
-              $.getJSON(url, function(geojson) {
-                overlay = L.geoJson(geojson, {
-                  style: function(feature) {
-                    return {
-                      fillColor: feature.properties.fillColor || '#ffffff',
-                      weight: feature.properties.weight || 1,
-                      opacity: feature.properties.opacity || opacity,
-                      color: feature.properties.color || '#cccccc',
-                      fillOpacity: feature.properties.fillOpacity || 0.5,
-                    }
-                  }
-                }).addTo(map);
-              });
-            } else {
-              overlay = L.tileLayer(c['Overlay'], { opacity: opacity }).addTo(map);
-            }
-
-          }
-
-          if (c['GeoJSON Overlay']) {
-            $.getJSON(c['GeoJSON Overlay'], function(geojson) {
-
-              // Parse properties string into a JS object
-              var props = {};
-
-              if (c['GeoJSON Feature Properties']) {
-                var propsArray = c['GeoJSON Feature Properties'].split(';');
-                var props = {};
-                for (var p in propsArray) {
-                  if (propsArray[p].split(':').length === 2) {
-                    props[ propsArray[p].split(':')[0].trim() ] = propsArray[p].split(':')[1].trim();
-                  }
-                }
-              }
-
-              geoJsonOverlay = L.geoJson(geojson, {
-                style: function(feature) {
-                  return {
-                    fillColor: feature.properties.fillColor || props.fillColor || '#ffffff',
-                    weight: feature.properties.weight || props.weight || 1,
-                    opacity: feature.properties.opacity || props.opacity || 0.5,
-                    color: feature.properties.color || props.color || '#cccccc',
-                    fillOpacity: feature.properties.fillOpacity || props.fillOpacity || 0.5,
-                  }
-                }
-              }).addTo(map);
-            });
-          }
-
-          // Fly to the new marker destination if latitude and longitude exist
-          if (c['Latitude'] && c['Longitude']) {
-            var zoom = c['Zoom'] ? c['Zoom'] : CHAPTER_ZOOM;
-            map.flyTo([c['Latitude'], c['Longitude']], zoom, {
-              animate: true,
-              duration: 2, // default is 2 seconds
-            });
-          } else if (i == 0) {
-            // Fly to map bound if no location be set on chapter header
-            map.flyToBounds(bounds, {
-              animate: true,
-              duration: 2, // default is 2 seconds
-            });
-          }
-
-          // No need to iterate through the following chapters
-          break;
-        }
-      }
-    });
-
-
-    $('#contents').append(" \
-      <div id='space-at-the-bottom'> \
-        <a href='#top'>  \
-          <i class='fa fa-chevron-up'></i></br> \
-          <small>Top</small>  \
-        </a> \
-      </div> \
-    ");
-
     /* Generate a CSS sheet with cosmetic changes */
     $("<style>")
       .prop("type", "text/css")
@@ -479,61 +428,204 @@ $(window).on('load', function() {
       });
     }
 
-    /* Render the range of this journey. */
-    L.ellipse([j['Center Latitude'], j['Center Longitude']], [j['Semi-Major Axis'], j['Semi-Minor Axis']], j['Orientation'], {
-        color: '#3388ff',
-        weight: 2,
-        fillColor: '#3388ff',
-        fillOpacity: 0
-      }
-    ).addTo(map);
+    // Add Google Analytics if the ID exists
+    addGoogleAnalytics();
 
+  }
+
+  function initSummury(journeys) {
+    $('#chapters').empty();
+    
+    setTitle(getSetting('_mapTitle'), getSetting('_mapSubtitle'), getSetting('_mapLogo'));
+
+    for (let i in journeys) {
+      const j = journeys[i];
+
+      if (!j['Sheet Name']) {
+        continue;
+      }
+
+      
+      $.getJSON('geojson/Untitled.geojson', function(geojson) {
+        L.geoJson(geojson, {
+          style: function(feature) {
+            return {
+              fillColor: feature.properties.fillColor ||  'blue',
+              weight: feature.properties.weight || 1,
+              opacity: feature.properties.opacity || 0.5,
+              color: feature.properties.color || 'blue',
+              fillOpacity: feature.properties.fillOpacity || 0.5,
+            }
+          }
+        }).addTo(markerLayer);
+      });
+      
+
+      /* Render the range of this journey. */
+      //let x = parseFloat(j['Center Latitude']), y = parseFloat(j['Center Longitude']);
+      //let e = L.ellipse([j['Center Latitude'], j['Center Longitude']], [j['Semi-Major Axis'], j['Semi-Minor Axis']], j['Orientation'], {
+      //    color: '#3388ff',
+      //    weight: 2,
+      //    fillColor: '#3388ff',
+      //    fillOpacity: 0
+      ///*let e = L.imageOverlay(j['Storymap Logo'], [[x-0.1, y-0.1], [x+0.1, y+0.1]], {
+      //  opacity: 0.8, // Set transparency level
+      //  alt: 'Custom Map Overlay'*/
+      //}).on('click', function() {   
+      //  location.hash = j['Sheet Name'];
+      //}).addTo(markerLayer);
+    }
+    map.setView(L.latLng(38.7207182,135.7390919), 6);
+
+    $('#map, #narration, #title').css('visibility', 'visible');
+    $('div.loader').css('visibility', 'hidden');
+  }
+
+  function initJourney(chapters) {
+    $('#chapters').empty();
+  
+    let title = chapters.shift()
+    setTitle(title['Chapter'], title['Description'], title['Media Link']);
+    
+    const chapterContainerMargin = 70;
+    var pixelsAbove = [];
+
+    var currentlyInFocus; // integer to specify each chapter is currently in focus
+    var overlay;  // URL of the overlay for in-focus chapter
+    var geoJsonOverlay;
+
+    markers = addMarkers(chapters);
+    addChapters(chapters);
+
+    var markActiveColor = function(k) {
+      /* Removes marker-active class from all markers */
+      for (var i = 0; i < markers.length; i++) {
+        if (markers[i] && markers[i]._icon) {
+          markers[i]._icon.className = markers[i]._icon.className.replace(' marker-active', '');
+
+          if (i == k) {
+            /* Adds marker-active class, which is orange, to marker k */
+            markers[k]._icon.className += ' marker-active';
+          }
+        }
+      }
+    }
+
+    // For each block (chapter), calculate how many pixels above it
+    pixelsAbove[0] = -100;
+    for (i = 1; i < chapters.length; i++) {
+      pixelsAbove[i] = pixelsAbove[i-1] + $('div#container' + (i-1)).height() + chapterContainerMargin;
+    }
+    pixelsAbove.push(Number.MAX_VALUE);
+
+    /* Register marker callback */
     var bounds = [];
     for (i in markers) {
       if (markers[i]) {
-        markers[i].addTo(map);
+        markers[i].addTo(markerLayer);
         markers[i]['_pixelsAbove'] = pixelsAbove[i];
         markers[i].on('click', function() {
           var pixels = parseInt($(this)[0]['_pixelsAbove']) + 5;
-          $('div#contents').animate({
-            scrollTop: pixels + 'px'});
+          $('div#contents').animate({scrollTop: pixels + 'px'});
+          if ($(this)[0]._icon.className.includes('marker-active')) {
+            window.open($(this)[0]['_mapLink'], '_blank');
+          }
         });
         bounds.push(markers[i].getLatLng());
       }
     }
     map.fitBounds(bounds);
 
+    $('div#contents').off('scroll').scroll(function() {
+      var currentPosition = $(this).scrollTop();
+
+      // Make title disappear on scroll
+      if (currentPosition < 200) {
+        $('#title').css('opacity', 1 - Math.min(1, currentPosition / 100));
+      }
+
+      for (var i = 0; i < pixelsAbove.length - 1; i++) {
+
+        if ( currentPosition >= pixelsAbove[i]
+          && currentPosition < (pixelsAbove[i+1] - 2 * chapterContainerMargin)
+          && currentlyInFocus != i
+        ) {
+
+          // Update URL hash
+          //location.hash = i + 1;
+
+          // Remove styling for the old in-focus chapter and
+          // add it to the new active chapter
+          $('.chapter-container').removeClass("in-focus").addClass("out-focus");
+          $('div#container' + i).addClass("in-focus").removeClass("out-focus");
+
+          currentlyInFocus = i;
+          markActiveColor(currentlyInFocus);
+
+          // Remove overlay tile layer if needed
+          if (overlay && map.hasLayer(overlay)) {
+            map.removeLayer(overlay);
+          }
+
+          // Remove GeoJson Overlay tile layer if needed
+          if (geoJsonOverlay && map.hasLayer(geoJsonOverlay)) {
+            map.removeLayer(geoJsonOverlay);
+          }
+
+          var c = chapters[i];
+
+          addOverlay(c);
+          addGeoJsonOverlay(c);
+
+          // Fly to the new marker destination if latitude and longitude exist
+          if (c['Latitude'] && c['Longitude']) {
+            var zoom = c['Zoom'] ? c['Zoom'] : CHAPTER_ZOOM;
+            map.flyTo([c['Latitude'], c['Longitude']], zoom, {
+              animate: true,
+              duration: 2, // default is 2 seconds
+            });
+          } else if (i == 0) {
+            // Fly to map bound if no location be set on chapter header
+            map.flyToBounds(bounds, {
+              animate: true,
+              duration: 2, // default is 2 seconds
+            });
+          }
+
+          // No need to iterate through the following chapters
+          break;
+        }
+      }
+    });
+
     $('#map, #narration, #title').css('visibility', 'visible');
     $('div.loader').css('visibility', 'hidden');
 
-    $('div#container0').addClass("in-focus");
-    $('div#contents').animate({scrollTop: '1px'});
-
     // On first load, check hash and if it contains an number, scroll down
-    let viewChapter = parseInt(location.hash.substr(1));
+    let viewChapter = 0; //parseInt(location.hash.substr(1));
     if (viewChapter && viewChapter != 1) {
       var containerId = viewChapter - 1;
       $('#contents').animate({
         scrollTop: $('#container' + containerId).offset().top
       }, 1000);
+    } else {
+      $('div#container0').addClass("in-focus");
+      $('div#contents').animate({scrollTop: '1px'});
     }
-
-    // Add Google Analytics if the ID exists
-    var ga = getSetting('_googleAnalytics');
-    if ( ga && ga.length >= 10 ) {
-      var gaScript = document.createElement('script');
-      gaScript.setAttribute('src','https://www.googletagmanager.com/gtag/js?id=' + ga);
-      document.head.appendChild(gaScript);
-
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', ga);
-    }
-
-
   }
 
+  function setTitle(title, subtitle, logo) {
+    document.title = title;
+    $('#header').html('<h1>' + (title || '') + '</h1><h2>' + (subtitle || '') + getSetting('_mapBanner'));
+
+    // set logo
+    if (logo) {
+      $('#top').css('height', '60px');
+      $('#logo').html('<img src="' + logo + '" />');
+    } else {
+      $('#logo').css('display', 'none');
+    }
+  }
 
   /**
    * Changes map attribution (author, GitHub repo, email etc.) in bottom-right
@@ -561,6 +653,28 @@ $(window).on('load', function() {
     if (getSetting('_codeCredit')) credit += ' by ' + getSetting('_codeCredit');
     credit += ' with ';
     $('.leaflet-control-attribution')[0].innerHTML = credit + attributionHTML;
+
+    $('#logo').on('click', function() {
+      location.hash = '';
+    });
+
+    $('#to-top').on('click', function() {   
+      $('#contents').animate({scrollTop: 0 }, 800);
+    });
+  }
+
+  function addGoogleAnalytics() {
+    var ga = getSetting('_googleAnalytics');
+    if ( ga && ga.length >= 10 ) {
+      var gaScript = document.createElement('script');
+      gaScript.setAttribute('src','https://www.googletagmanager.com/gtag/js?id=' + ga);
+      document.head.appendChild(gaScript);
+
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', ga);
+    }
   }
 
 });
