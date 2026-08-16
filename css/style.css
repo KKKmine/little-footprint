@@ -20,6 +20,9 @@ body {
   width: 100vw;
   height: calc(100vh - 203px);
   z-index: 80;
+
+  color: black;
+  background-color: white; /* Background Color */
 }
 
 #contents {
@@ -41,26 +44,29 @@ body {
   margin: 0;
   text-align: center;
   padding-top: 150px;
+  height: 150px;
+  padding-top: 150px;
 }
 
 #title {
   position: absolute;
   left: 0;
   top: 203px;
-  background-color: white;
   width: 100vw;
   z-index: 100;
   margin: 0;
   padding: 0;
-  visibility: hidden;
   font-weight: bold;
   text-align: center;
+  
+  color: black;
+  background-color: #BAD7F2; /* Title Color */
 }
 
 .chapter-container {
   /* margin + padding = chapterContainerMargin in script.js */
   /* Important for scrolling! */
-  margin: 50px 0 0 0;
+  margin: 0;
   padding: 20px 0 0 0;
   text-align: center;
 }
@@ -69,7 +75,7 @@ body {
   height: auto;
   width: auto;
   max-height: 100%;
-  max-width: 100%;
+  max-width: 90%;
   margin-left: auto;
   margin-right: auto;
 
@@ -122,6 +128,13 @@ body {
   font-style: italic;
   color: gray;
 }
+
+a, a:visited, a:hover {
+  color: "blue";
+}
+.in-focus {
+  background-color: rgba(0, 0, 0, 0.06); /* Focus Color */
+}
 a.source:visited {
   color: grey;
 }
@@ -131,6 +144,8 @@ a.source:visited {
   text-align: left;
   font-size: 11pt;
   padding: 20px;
+
+  white-space: pre-line;
 }
 
 .in-focus {
@@ -187,4 +202,23 @@ h2 {
   margin: 0;
   font-size: 1.1em;
   font-weight: normal;
+}
+
+#header-select {
+  font-size: x-large;
+  font-weight: inherit;
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  text-align-last: center;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 20px;
+
+  background-image: url('data:image/svg+xml;utf8,<svg fill="black" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right center;
 }

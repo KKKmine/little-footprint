@@ -33,36 +33,33 @@ $(window).on('load', function() {
 
     // First, try reading data from the Google Sheet
     if (typeof googleDocURL !== 'undefined' && googleDocURL) {
-
       if (typeof googleApiKey !== 'undefined' && googleApiKey) {
 
         var apiUrl = 'https://sheets.googleapis.com/v4/spreadsheets/'
         var spreadsheetId = googleDocURL.split('/d/')[1].split('/')[0];
 
-        location.hash = '#Setonaikai'; // Debug:
+        location.hash = '#Setonaikai'; // TODO: Front Page
 
         if (location.hash) {
           var name = location.hash.substr(1);
           $.when(
-            $.getJSON(apiUrl + spreadsheetId + '/values/Options?key=' + googleApiKey),
+            $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
             $.getJSON(apiUrl + spreadsheetId + '/values/' + name + '?key=' + googleApiKey),
-          ).then(function(options, chapters) {
-            createDocumentSettings(parse(options[0]));
+          ).then(function(journey, chapters) {
+            initTitle(parse(journey[0]), name);
             initMap();
             initJourney(parse(chapters[0]));
           }).fail(function() { 
-            // Debug:
+            // TODO:
             //location.hash = '';
             //location.reload();
           })
         } else {
           $.when(
-            $.getJSON(apiUrl + spreadsheetId + '/values/Options?key=' + googleApiKey),
             $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
-          ).then(function(options, journey) {
-            createDocumentSettings(parse(options[0]));
+          ).then(function(journey) {
+            initTitle(parse(journey), name);
             initMap();
-            initSummury(parse(journey[0]));
           })
         }
 
@@ -107,61 +104,6 @@ $(window).on('load', function() {
       })
     }
   });
-
-
-  /**
-  * Reformulates documentSettings as a dictionary, e.g.
-  * {"webpageTitle": "Leaflet Boilerplate", "infoPopupText": "Stuff"}
-  */
-  function createDocumentSettings(settings) {
-    for (var i in settings) {
-      var setting = settings[i];
-      documentSettings[setting.Setting] = setting.Customize;
-    }
-  }
-
-  /**
-   * Returns the value of a setting s
-   * getSetting(s) is equivalent to documentSettings[constants.s]
-   */
-  function getSetting(s) {
-    return documentSettings[constants[s]];
-  }
-
-  /**
-   * Returns the value of setting named s from constants.js
-   * or def if setting is either not set or does not exist
-   * Both arguments are strings
-   * e.g. trySetting('_authorName', 'No Author')
-   */
-  function trySetting(s, def) {
-    s = getSetting(s);
-    if (!s || s.trim() === '') { return def; }
-    return s;
-  }
-
-  /**
-   * Loads the basemap and adds it to the map
-   */
-  function addBaseMap() {
-    var basemap = trySetting('_tileProvider', 'Stamen.TonerLite');
-    if (basemap == "Google.MapApi") {
-      L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-        maxZoom: 18,
-        subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-      }).addTo(map);
-    } else {
-      L.tileLayer.provider(basemap, {
-        maxZoom: 18,
-        
-        // Pass the api key to most commonly used parameters
-        apiKey: trySetting('_tileProviderApiKey', ''),
-        apikey: trySetting('_tileProviderApiKey', ''),
-        key: trySetting('_tileProviderApiKey', ''),
-        accessToken: trySetting('_tileProviderApiKey', '')
-      }).addTo(map);
-    }
-  }
   
   function loadMarker(chapters) {
     var content;
@@ -470,53 +412,58 @@ $(window).on('load', function() {
     }
   }
 
+  function initTitle(journeys, selectName) {
+    for (let i in journeys) {
+      let j = journeys[i];
+      $('<option>', {
+        text: j['Storymap Title'],
+        selected: (j['Sheet Name'] == selectName)
+      })
+      .data('name', j['Sheet Name'])
+      .appendTo('#header-select');
+    }
+    $('#header-select').off('change').on('change', function() {
+      location.hash = '#' + $(this).find('option:selected').data('name');
+    });
+  }
+
   function initMap() {  
     // Load tiles
-    addBaseMap();
-
-    // Add zoom controls if needed
-    if (getSetting('_zoomControls') !== 'off') {
-      L.control.zoom({
-        position: getSetting('_zoomControls')
+    if (TileProvider == "Google.MapApi") {
+      L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 18,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+      }).addTo(map);
+    } else {
+      L.tileLayer.provider(TileProvider, {
+        maxZoom: 18,
+        
+        // Pass the api key to most commonly used parameters
+        apiKey: TileProviderApiKey,
+        apikey: TileProviderApiKey,
+        key: TileProviderApiKey,
+        accessToken: TileProviderApiKey
       }).addTo(map);
     }
+
+    // Add zoom controls
+    L.control.zoom({
+      position: ZoomControls
+    }).addTo(map);
     map.scrollWheelZoom.enabled();
 
-    changeAttribution();
-    /* Generate a CSS sheet with cosmetic changes */
-    $("<style>")
-      .prop("type", "text/css")
-      .html("\
-      #narration, #title {\
-        background-color: " + trySetting('_narrativeBackground', 'white') + "; \
-        color: " + trySetting('_narrativeText', 'black') + "; \
-      }\
-      a, a:visited, a:hover {\
-        color: " + trySetting('_narrativeLink', 'blue') + " \
-      }\
-      .in-focus {\
-        background-color: " + trySetting('_narrativeActive', '#f0f0f0') + " \
-      }")
-      .appendTo("head");
+    $('#to-top').on('click', function() {   
+      $('#contents').animate({scrollTop: 0 }, 800);
+    });
 
-
-    endPixels = parseInt(getSetting('_pixelsAfterFinalChapter'));
-    if (endPixels > 100) {
-      $('#space-at-the-bottom').css({
-        'height': (endPixels / 2) + 'px',
-        'padding-top': (endPixels / 2) + 'px',
-      });
-    }
-
-    // Add Google Analytics if the ID exists
-    addGoogleAnalytics();
+    /*changeAttribution();*/
 
   }
 
   function initSummury(journeys) {
     $('#chapters').empty();
     
-    setTitle(getSetting('_mapTitle'), getSetting('_mapSubtitle'), getSetting('_mapLogo'));
+    setTitle(MapTitle, MapSubtitle, MapBanner);
 
     for (let i in journeys) {
       const j = journeys[i];
@@ -578,6 +525,7 @@ $(window).on('load', function() {
     loadPath(chapters);
     loadChapter(chapters);
 
+    /* TODO: optimize */
     $('div#contents').off('scroll').scroll(function() {
       var currentPosition = $(this).scrollTop();
 
@@ -605,7 +553,8 @@ $(window).on('load', function() {
 
   function setTitle(title, subtitle, logo) {
     document.title = title;
-    $('#header').html('<h1>' + (title || '') + '</h1><h2>' + (subtitle || '') + getSetting('_mapBanner'));
+    //$('#header').html('<h1>' + (title || '') + '</h1><h2>' + (subtitle || '') + '<br><small>Scroll down <i class="fa fa-chevron-down"></i></small></h2>');
+    $('#subtitle').html((subtitle || '') + '<br>');
 
     // set logo
     if (logo) {
@@ -626,8 +575,8 @@ $(window).on('load', function() {
       + (typeof googleDocURL !== 'undefined' && googleDocURL ? googleDocURL : './csv/Chapters.csv')
       + '" target="_blank">data</a>';
 
-    var name = getSetting('_authorName');
-    var url = getSetting('_authorURL');
+    var name = AuthorName;
+    var url = AuthorURL;
 
     if (name && url) {
       if (url.indexOf('@') > 0) { url = 'mailto:' + url; }
@@ -638,32 +587,11 @@ $(window).on('load', function() {
       credit += ' | ';
     }
 
-    credit += 'View <a href="' + getSetting('_githubRepo') + '">code</a>';
-    if (getSetting('_codeCredit')) credit += ' by ' + getSetting('_codeCredit');
+    credit += 'View <a href="' + GithubRepo + '">code</a>';
+    if (CodeCredit) credit += ' by ' + CodeCredit;
     credit += ' with ';
     $('.leaflet-control-attribution')[0].innerHTML = credit + attributionHTML;
 
-    $('#logo').on('click', function() {
-      location.hash = '';
-    });
-
-    $('#to-top').on('click', function() {   
-      $('#contents').animate({scrollTop: 0 }, 800);
-    });
-  }
-
-  function addGoogleAnalytics() {
-    var ga = getSetting('_googleAnalytics');
-    if ( ga && ga.length >= 10 ) {
-      var gaScript = document.createElement('script');
-      gaScript.setAttribute('src','https://www.googletagmanager.com/gtag/js?id=' + ga);
-      document.head.appendChild(gaScript);
-
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', ga);
-    }
   }
 
 });
