@@ -38,10 +38,8 @@ $(window).on('load', function() {
         var apiUrl = 'https://sheets.googleapis.com/v4/spreadsheets/'
         var spreadsheetId = googleDocURL.split('/d/')[1].split('/')[0];
 
-        location.hash = '#Setonaikai'; // TODO: Front Page
-
         if (location.hash) {
-          var name = location.hash.substr(1);
+          var name = location.hash.substring(1);
           $.when(
             $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
             $.getJSON(apiUrl + spreadsheetId + '/values/' + name + '?key=' + googleApiKey),
@@ -315,8 +313,11 @@ $(window).on('load', function() {
       container
         .append('<p class="chapter-header">' + c['Chapter'] + '</p>')
         .append(mediaContainer != null ? mediaContainer : '')
-        .append(source)
-        .append('<p class="description">' + c['Description'] + '</p>');
+        .append(source);
+
+      if (c['Description'] != '') {
+        container.append('<p class="description">' + c['Description'] + '</p>');
+      }
 
       $('#chapters').append(container);
 
@@ -413,6 +414,14 @@ $(window).on('load', function() {
   }
 
   function initTitle(journeys, selectName) {
+    if (selectName == null) {
+      $('<option>', {
+        text: 'Little Footprint',
+        selected: true,
+        disabled: true,
+        hidden: true
+      }).appendTo('#header-select');
+    }
     for (let i in journeys) {
       let j = journeys[i];
       $('<option>', {
@@ -462,8 +471,9 @@ $(window).on('load', function() {
 
   function initSummury(journeys) {
     $('#chapters').empty();
-    
-    setTitle(MapTitle, MapSubtitle, MapBanner);
+
+    document.title = MapTitle;
+    $('#subtitle').html((MapSubtitle || '') + '<br>');
 
     for (let i in journeys) {
       const j = journeys[i];
@@ -511,28 +521,35 @@ $(window).on('load', function() {
   function initJourney(chapters) {
     $('#chapters').empty();
   
+    /* Init title */
     let title = chapters.shift()
-    setTitle(title['Chapter'], title['Description'], title['Media Link']);
-    
-    const chapterContainerMargin = 70;
-    var pixelsAbove = [];
-
-    var currentlyInFocus; // integer to specify each chapter is currently in focus
-    var overlay;  // URL of the overlay for in-focus chapter
-    var geoJsonOverlay;
+    document.title = title['Chapter'];
+    $('#subtitle').html((title['Description'] || '') + '<br>');
 
     loadMarker(chapters);
     loadPath(chapters);
     loadChapter(chapters);
 
-    /* TODO: optimize */
-    $('div#contents').off('scroll').scroll(function() {
+    /* Hide title on scorll */
+    var $title = $('#title');
+    var ticking = false;
+    var lastOpacity = -1;
+    $('div#contents').off('scroll').on('scroll', function() {
       var currentPosition = $(this).scrollTop();
-
-      // Make title disappear on scroll
-      //if (currentPosition < 200) {
-      $('#title').css('opacity', 1 - Math.min(1, currentPosition / 100));
-      //}
+      if (!ticking) {
+        window.requestAnimationFrame(function() {
+          var opacity = Math.max(0, 1 - (currentPosition / 100));
+          if (opacity !== lastOpacity) {
+            $title.css({
+              'opacity': opacity,
+              'pointer-events': opacity === 0 ? 'none' : 'auto'
+            });
+            lastOpacity = opacity;
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
     });
 
     $('#map, #narration, #title').css('visibility', 'visible');
@@ -550,21 +567,6 @@ $(window).on('load', function() {
       $('div#contents').animate({scrollTop: '1px'});
     }
   }
-
-  function setTitle(title, subtitle, logo) {
-    document.title = title;
-    //$('#header').html('<h1>' + (title || '') + '</h1><h2>' + (subtitle || '') + '<br><small>Scroll down <i class="fa fa-chevron-down"></i></small></h2>');
-    $('#subtitle').html((subtitle || '') + '<br>');
-
-    // set logo
-    if (logo) {
-      $('#top').css('height', '60px');
-      $('#logo').html('<img src="' + logo + '" />');
-    } else {
-      $('#logo').css('display', 'none');
-    }
-  }
-
   /**
    * Changes map attribution (author, GitHub repo, email etc.) in bottom-right
    */

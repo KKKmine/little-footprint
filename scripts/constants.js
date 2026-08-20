@@ -23,7 +23,7 @@ var MapSubtitle = 'Let Japan';
 var MapLogo = 'https://drive.google.com/thumbnail?id=1ZwOq3fe0PAwedmqxAG2k8VVRBs3OP8WK';
 var MapBanner = '<br><small>Scroll down <i class="fa fa-chevron-down"></i></small></h2>';
 
-var AuthorName = '阿多田';
+var AuthorName = 'KKK';
 var AuthorURL = '';
 var GithubRepo = 'https://github.com/KKKmine/leaflet-storymaps-with-google-sheets';
 var CodeCredit = '';
