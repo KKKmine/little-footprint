@@ -8,7 +8,6 @@ $(window).on('load', function() {
   var markers = [];
   var bounds = [];
 
-  // Some constants, such as default settings
   const CHAPTER_ZOOM = 15;
 
   // First, try reading Options.csv
@@ -25,55 +24,54 @@ $(window).on('load', function() {
       })}).fail(function(e) { alert('Found Options.csv, but could not read Chapters.csv') });
 
   // If not available, try from the Google Sheet
-  }).fail(function(e) {*/
+  }).fail(function(e) {
+  })*/
 
-    var parse = function(res) {
-      return Papa.parse(Papa.unparse(res.values), {header: true} ).data;
-    }
+  var parse = function(res) {
+    return Papa.parse(Papa.unparse(res.values), {header: true} ).data;
+  }
 
-    // First, try reading data from the Google Sheet
-    if (typeof googleDocURL !== 'undefined' && googleDocURL) {
-      if (typeof googleApiKey !== 'undefined' && googleApiKey) {
+  // First, try reading data from the Google Sheet
+  if (typeof googleDocURL !== 'undefined' && googleDocURL) {
+    if (typeof googleApiKey !== 'undefined' && googleApiKey) {
 
-        var apiUrl = 'https://sheets.googleapis.com/v4/spreadsheets/'
-        var spreadsheetId = googleDocURL.split('/d/')[1].split('/')[0];
+      var apiUrl = 'https://sheets.googleapis.com/v4/spreadsheets/'
+      var spreadsheetId = googleDocURL.split('/d/')[1].split('/')[0];
 
-        if (location.hash) {
-          var name = location.hash.substring(1);
-          $.when(
-            $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
-            $.getJSON(apiUrl + spreadsheetId + '/values/' + name + '?key=' + googleApiKey),
-          ).then(function(journey, chapters) {
-            initTitle(parse(journey[0]), name);
-            initMap();
-            initJourney(parse(chapters[0]));
-          }).fail(function() { 
-            // TODO:
-            //location.hash = '';
-            //location.reload();
-          })
-        } else {
-          $.when(
-            $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
-          ).then(function(journey) {
-            initTitle(parse(journey), name);
-            initMap();
-          })
-        }
-
+      if (location.hash) {
+        var name = location.hash.substring(1);
+        $.when(
+          $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
+          $.getJSON(apiUrl + spreadsheetId + '/values/' + name + '?key=' + googleApiKey),
+        ).then(function(journey, chapters) {
+          initChapter(parse(journey[0]), name);
+          initMap();
+          initJourney(parse(chapters[0]));
+        }).fail(function(err) {
+          if (err.status == 400) {
+            // Incorrect journey name
+            location.hash = '';
+            location.reload();
+          } else {
+            console.log(err);
+          }
+        })
       } else {
-        alert('You load data from a Google Sheet, you need to add a free Google API key')
+        $.when(
+          $.getJSON(apiUrl + spreadsheetId + '/values/Journey?key=' + googleApiKey),
+        ).then(function(journey) {
+          initChapter(parse(journey), name);
+          initMap();
+        })
       }
-
     } else {
-      alert('You need to specify a valid Google Sheet (googleDocURL)')
+      alert('You load data from a Google Sheet, you need to add a free Google API key')
     }
+  } else {
+    alert('You need to specify a valid Google Sheet (googleDocURL)')
+  }
 
-  //})
-
-  $(window).on('hashchange', function() {
-    var page = location.hash;
-  
+  $(window).on('hashchange', function() {  
     $('div.loader').css('visibility', 'visible');    
 
     // Init variable
@@ -84,15 +82,20 @@ $(window).on('load', function() {
     overlayLayer.clearLayers();
   
     if (location.hash) {
-      var name = location.hash.substr(1);
+      var name = location.hash.substring(1);
       $.when(
         $.getJSON(apiUrl + spreadsheetId + '/values/' + name + '?key=' + googleApiKey),
       ).then(function(chapters) {
         initJourney(parse(chapters));
-      }).fail(function() {
-        // Debug:
-        //location.hash = '';
-        //location.reload();
+        $('#contents').focus();
+      }).fail(function(err) {
+        if (err.status == 400) {
+          // Incorrect journey name
+          location.hash = '';
+          location.reload();
+        } else {
+          console.log(err);
+        }
       })
     } else {
       $.when(
@@ -191,13 +194,13 @@ $(window).on('load', function() {
       let c = chapters[i];
 
       // Add chapter container
-      var container = $('<div></div>', {
+      var $container = $('<div></div>', {
         id: 'container' + i,
         class: 'chapter-container'
       }).on('click', function() {
         chapterFocus(i, c);
 
-        // ZoomIn Marker
+        // Zoom in to location
         if (c['Latitude'] && c['Longitude']) {
           map.flyTo([c['Latitude'], c['Longitude']], c['Zoom'] || CHAPTER_ZOOM, {
             animate: false,
@@ -207,46 +210,65 @@ $(window).on('load', function() {
         }
       });
 
+      // Add Google map link button
+      var mapButton = '';
+      if (c['Latitude'] && c['Longitude']) {
+        let googleMapUrl = 'https://www.google.com/maps/search/?api=1&query=' + c['Latitude'] + ',' + c['Longitude'] + '(' + c['Location'] + ')';
+        mapButton = '<a href="' + googleMapUrl + '" target="_blank" class="map-link" c><i class="material-icons" style="color: ' + c['Marker Color'] + '";>place</i></a>';
+      }
+
+      // Add text
+      var headerText = '<p class="chapter-header">' + mapButton + c['Chapter'] + '</p>';
+      var descriptionText = null;
+      if (c['Description']) {
+        descriptionText = '<p class="description">' + c['Description'] + '</p>'
+      }
+
       // Add media and credits: YouTube, audio, or image
-      var media = null;
-      var mediaGroup = $();
-      var mediaContainer = null;
+      var $mediaGroup = $();
+      var $mediaContainer = null;
+      var galleryBtn = '<button class="float-btn"><i class="material-icons">collections</i></button>'
 
       // Add media source
-      var source = '';
+      var $source = null;
       if (c['Media Credit Link']) {
-        source = $('<a>', {
+        $source = $('<a>', {
           text: c['Media Credit'],
           href: c['Media Credit Link'],
           target: "_blank",
           class: 'source'
         });
-      } else {
-        source = $('<span>', {
+      } else if (c['Media Credit']) {
+        $source = $('<span>', {
           text: c['Media Credit'],
           class: 'source'
         });
       }
 
-      for (link of c['Media Link'].split('\n')) {
-        // YouTube
+      let links = c['Media Link'].split('\n');
+      for (let link of links) {
+        var $media = null;
+        var isFirstMedia = ($mediaGroup.length == 0);
+
+        /* Embedding Video: display without lightbox */
         if (link.indexOf('youtube.com/') > -1 || link.indexOf('preview') > -1) {
-          media = $('<iframe></iframe>', {
+          // Only display first video
+          if (!isFirstMedia) {
+            continue;
+          }
+          $media = $('<iframe>', {
             src: link,
-            width: '100%',
-            height: '100%',
-            frameborder: '0',
             allow: 'autoplay; encrypted-media',
             allowfullscreen: 'allowfullscreen',
           });
 
-          mediaContainer = $('<div></div>', {
+          $mediaContainer = $('<div>', {
             class: 'img-container'
-          }).append(media).after(source);
+          }).append($media)
+            .after($source);
           break;
         }
 
-        // If not YouTube: either audio or image
         var mediaTypes = {
           'jpg': 'img',
           'jpeg': 'img',
@@ -254,6 +276,7 @@ $(window).on('load', function() {
           'tiff': 'img',
           'gif': 'img',
           'webp': 'img',
+          /* TODO */
           'mp3': 'audio',
           'ogg': 'audio',
           'wav': 'audio',
@@ -268,36 +291,40 @@ $(window).on('load', function() {
         }
 
         if (mediaType) {
-          var media = $('<' + mediaType + '>', {
+          $media = $('<' + mediaType + '>', {
               controls: mediaType === 'audio' ? 'controls' : '',
               alt: c['Chapter']
             });
           /* Only render the first media */
-          if (mediaGroup.length == 0) {
-            media.attr('src', url);
+          if (isFirstMedia) {
+            $media.attr('src', url);
           } else {
-            media.attr('data-src', url).css('display', 'none');
+            $media.attr('data-src', url).css('display', 'none');
           }
 
           if (mediaType === 'img') {
-            var lightboxWrapper = $('<a></a>', {
+            let $lightboxWrapper = $('<a>', {
               'data-lightbox': "gallery-" + i,
+              'class': isFirstMedia ? 'lightbox-display-wrapper' : '',
               'href': url,
               'data-title': title ? title : c['Chapter'],
               'data-alt': c['Chapter'],
             });
-            media = lightboxWrapper.append(media);
-            mediaGroup = mediaGroup.add(media);
+            $lightboxWrapper.append($media);
+            /* Add gallery button if more than one media */
+            if (isFirstMedia && links.length > 1) {
+              $lightboxWrapper.append(galleryBtn);
+            }
+            $mediaGroup = $mediaGroup.add($lightboxWrapper);
           }
         }
       }
 
-      if (mediaType != undefined && mediaGroup.length) {
-        mediaContainer = $('<div></div', {
+      if (mediaType != undefined && $mediaGroup.length) {
+        $mediaContainer = $('<div>', {
           class: mediaType + '-container'
-        }).append(mediaGroup.length > 1 ? $('<i class="material-icons">collections</i>') : '')
-          .append(mediaGroup)
-          .after(source)
+        }).append($mediaGroup)
+          .after($source)
           .one("click", function() {
             /* Load and cache img */
             $(this).find('img').each(function() {
@@ -310,17 +337,13 @@ $(window).on('load', function() {
         });
       }
 
-      container
-        .append('<p class="chapter-header">' + c['Chapter'] + '</p>')
-        .append(mediaContainer != null ? mediaContainer : '')
-        .append(source);
+      $container
+        .append(headerText)
+        .append($mediaContainer)
+        .append($source)
+        .append(descriptionText);
 
-      if (c['Description'] != '') {
-        container.append('<p class="description">' + c['Description'] + '</p>');
-      }
-
-      $('#chapters').append(container);
-
+      $('#chapters').append($container);
     }
   }
 
@@ -413,8 +436,9 @@ $(window).on('load', function() {
     }
   }
 
-  function initTitle(journeys, selectName) {
-    if (selectName == null) {
+  function initChapter(journeys, name) {
+    /* Default title */
+    if (name == null) {
       $('<option>', {
         text: 'Little Footprint',
         selected: true,
@@ -422,18 +446,46 @@ $(window).on('load', function() {
         hidden: true
       }).appendTo('#header-select');
     }
+
+    /* Add title list */
     for (let i in journeys) {
       let j = journeys[i];
+      let isSelected = (j['Sheet Name'] == name);
       $('<option>', {
         text: j['Storymap Title'],
-        selected: (j['Sheet Name'] == selectName)
+        selected: isSelected
       })
       .data('name', j['Sheet Name'])
       .appendTo('#header-select');
+
+      if (isSelected) {
+        document.title = j['Storymap Title'];
+        $('#subtitle').html((j['Storymap Subtitle'] || '') + '<br>');
+      }
     }
+
+    /* Add title select callback */
     $('#header-select').off('change').on('change', function() {
       location.hash = '#' + $(this).find('option:selected').data('name');
     });
+
+    /* Update chapter position */
+    $('#top').height($('#title').height());
+
+    /* Utitily button callback */
+    $('#btn-top').on('click', function() {
+      $('#contents').animate({scrollTop: 0 }, 800);
+    });
+    $('#btn-map-scale').on('click', function() {
+      map.fitBounds(bounds);
+    });
+
+    lightbox.option({
+      'resizeDuration': 20,
+      'fadeDuration': 20,
+      'imageFadeDuration': 30,
+      'wrapAround': false,
+    })
   }
 
   function initMap() {  
@@ -457,31 +509,27 @@ $(window).on('load', function() {
 
     // Add zoom controls
     L.control.zoom({
-      position: ZoomControls
+      position: 'bottomright'
     }).addTo(map);
     map.scrollWheelZoom.enabled();
 
-    $('#to-top').on('click', function() {   
-      $('#contents').animate({scrollTop: 0 }, 800);
-    });
-
     /*changeAttribution();*/
-
   }
 
+  /* TODO */
   function initSummury(journeys) {
     $('#chapters').empty();
 
     document.title = MapTitle;
     $('#subtitle').html((MapSubtitle || '') + '<br>');
 
+/*
     for (let i in journeys) {
       const j = journeys[i];
 
       if (!j['Sheet Name']) {
         continue;
       }
-
       
       $.getJSON('geojson/Untitled.geojson', function(geojson) {
         L.geoJson(geojson, {
@@ -498,33 +546,28 @@ $(window).on('load', function() {
       });
       
 
-      /* Render the range of this journey. */
-      //let x = parseFloat(j['Center Latitude']), y = parseFloat(j['Center Longitude']);
-      //let e = L.ellipse([j['Center Latitude'], j['Center Longitude']], [j['Semi-Major Axis'], j['Semi-Minor Axis']], j['Orientation'], {
-      //    color: '#3388ff',
-      //    weight: 2,
-      //    fillColor: '#3388ff',
-      //    fillOpacity: 0
-      ///*let e = L.imageOverlay(j['Storymap Logo'], [[x-0.1, y-0.1], [x+0.1, y+0.1]], {
-      //  opacity: 0.8, // Set transparency level
-      //  alt: 'Custom Map Overlay'*/
-      //}).on('click', function() {   
-      //  location.hash = j['Sheet Name'];
-      //}).addTo(markerLayer);
+      // Render the range of this journey.
+      let x = parseFloat(j['Center Latitude']), y = parseFloat(j['Center Longitude']);
+      let e = L.ellipse([j['Center Latitude'], j['Center Longitude']], [j['Semi-Major Axis'], j['Semi-Minor Axis']], j['Orientation'], {
+          color: '#3388ff',
+          weight: 2,
+          fillColor: '#3388ff',
+          fillOpacity: 0
+      let e = L.imageOverlay(j['Storymap Logo'], [[x-0.1, y-0.1], [x+0.1, y+0.1]], {
+        opacity: 0.8, // Set transparency level
+        alt: 'Custom Map Overlay'
+      }).on('click', function() {   
+        location.hash = j['Sheet Name'];
+      }).addTo(markerLayer);
     }
     map.setView(L.latLng(38.7207182,135.7390919), 6);
-
+*/
     $('#map, #narration, #title').css('visibility', 'visible');
     $('div.loader').css('visibility', 'hidden');
   }
 
   function initJourney(chapters) {
     $('#chapters').empty();
-  
-    /* Init title */
-    let title = chapters.shift()
-    document.title = title['Chapter'];
-    $('#subtitle').html((title['Description'] || '') + '<br>');
 
     loadMarker(chapters);
     loadPath(chapters);
@@ -556,7 +599,7 @@ $(window).on('load', function() {
     $('div.loader').css('visibility', 'hidden');
 
     // On first load, check hash and if it contains an number, scroll down
-    let viewChapter = 0; //parseInt(location.hash.substr(1));
+    /*let viewChapter = 0; //parseInt(location.hash.substr(1));
     if (viewChapter && viewChapter != 1) {
       var containerId = viewChapter - 1;
       $('#contents').animate({
@@ -565,8 +608,11 @@ $(window).on('load', function() {
     } else {
       $('div#container0').addClass("in-focus");
       $('div#contents').animate({scrollTop: '1px'});
-    }
+    }*/
+  
+    $('#contents').focus();
   }
+
   /**
    * Changes map attribution (author, GitHub repo, email etc.) in bottom-right
    */
@@ -593,7 +639,6 @@ $(window).on('load', function() {
     if (CodeCredit) credit += ' by ' + CodeCredit;
     credit += ' with ';
     $('.leaflet-control-attribution')[0].innerHTML = credit + attributionHTML;
-
   }
 
 });
