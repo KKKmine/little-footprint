@@ -72,7 +72,7 @@ $(window).on('load', function() {
   }
 
   $(window).on('hashchange', function() {  
-    $('div.loader').css('visibility', 'visible');    
+    $('div.loader').show();    
 
     // Init variable
     markers = [];
@@ -87,7 +87,6 @@ $(window).on('load', function() {
         $.getJSON(apiUrl + spreadsheetId + '/values/' + name + '?key=' + googleApiKey),
       ).then(function(chapters) {
         initJourney(parse(chapters));
-        $('#contents').focus();
       }).fail(function(err) {
         if (err.status == 400) {
           // Incorrect journey name
@@ -136,13 +135,6 @@ $(window).on('load', function() {
           opacity: c['Marker'] === 'Hidden' ? 0 : 0.9,
           fillOpacity: c['Marker'] === 'Hidden' ? 0 : 0.9,
         }).on('click', function() {
-          // ZoomIn Marker
-          if (c['Latitude'] && c['Longitude']) {
-            map.flyTo([c['Latitude'], c['Longitude']], c['Zoom'] || CHAPTER_ZOOM, {
-              animate: false,
-            });
-          }
-        }).on('mouseover', function() { 
           chapterFocus(i, c);
 
           // Scroll to target chapter
@@ -150,6 +142,12 @@ $(window).on('load', function() {
           $container.stop(true, false).animate({
             scrollTop: $('#container' + i).offset().top - $container.offset().top + $container.scrollTop()
           }, 500);
+          // Zoom in to marker
+          if (c['Latitude'] && c['Longitude']) {
+            map.flyTo([c['Latitude'], c['Longitude']], c['Zoom'] || CHAPTER_ZOOM, {
+              animate: false,
+            });
+          }
         }).addTo(markerLayer);
 
         if (c['Location']) {
@@ -175,7 +173,7 @@ $(window).on('load', function() {
       var lon = parseFloat(c['Longitude']);
       if (c['Marker'] != 'Hidden' && !isNaN(lat) && !isNaN(lon)) {
         if (point != null) {
-          let routeLine = L.polyline([point, [lat, lon]], {
+          L.polyline([point, [lat, lon]], {
             color: c['Marker Color'],
             weight: 2,
             opacity: 0.9,
@@ -221,13 +219,13 @@ $(window).on('load', function() {
       var headerText = '<p class="chapter-header">' + mapButton + c['Chapter'] + '</p>';
       var descriptionText = null;
       if (c['Description']) {
-        descriptionText = '<p class="description">' + c['Description'] + '</p>'
+        descriptionText = '<p class="description">' + c['Description'] + '</p>';
       }
 
       // Add media and credits: YouTube, audio, or image
       var $mediaGroup = $();
       var $mediaContainer = null;
-      var galleryBtn = '<button class="float-btn"><i class="material-icons">collections</i></button>'
+      var galleryBtn = '<button class="float-btn"><i class="material-icons">collections</i></button>';
 
       // Add media source
       var $source = null;
@@ -444,7 +442,7 @@ $(window).on('load', function() {
         selected: true,
         disabled: true,
         hidden: true
-      }).appendTo('#header-select');
+      }).appendTo('#title-select');
     }
 
     /* Add title list */
@@ -456,7 +454,7 @@ $(window).on('load', function() {
         selected: isSelected
       })
       .data('name', j['Sheet Name'])
-      .appendTo('#header-select');
+      .appendTo('#title-select');
 
       if (isSelected) {
         document.title = j['Storymap Title'];
@@ -465,7 +463,7 @@ $(window).on('load', function() {
     }
 
     /* Add title select callback */
-    $('#header-select').off('change').on('change', function() {
+    $('#title-select').off('change').on('change', function() {
       location.hash = '#' + $(this).find('option:selected').data('name');
     });
 
@@ -562,8 +560,8 @@ $(window).on('load', function() {
     }
     map.setView(L.latLng(38.7207182,135.7390919), 6);
 */
-    $('#map, #narration, #title').css('visibility', 'visible');
-    $('div.loader').css('visibility', 'hidden');
+    $('#map, #narration, #title').show();
+    $('div.loader').hide();
   }
 
   function initJourney(chapters) {
@@ -595,8 +593,8 @@ $(window).on('load', function() {
       }
     });
 
-    $('#map, #narration, #title').css('visibility', 'visible');
-    $('div.loader').css('visibility', 'hidden');
+    $('#map, #narration, #title').show();
+    $('div.loader').hide();
 
     // On first load, check hash and if it contains an number, scroll down
     /*let viewChapter = 0; //parseInt(location.hash.substr(1));
@@ -609,8 +607,6 @@ $(window).on('load', function() {
       $('div#container0').addClass("in-focus");
       $('div#contents').animate({scrollTop: '1px'});
     }*/
-  
-    $('#contents').focus();
   }
 
   /**

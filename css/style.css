@@ -7,7 +7,7 @@ body {
 
 #map {
   height: 200px;
-  width: 100vw;
+  width: 100dvw;
   position: absolute;
   border-bottom: 3px solid orange;
   top: 0;
@@ -17,8 +17,8 @@ body {
 #narration {
   position: absolute;
   top: 203px;
-  width: 100vw;
-  height: calc(100vh - 203px);
+  bottom: 0;
+  width: 100dvw;
   z-index: 80;
 
   color: black;
@@ -45,17 +45,15 @@ body {
 }
 
 #title {
-  position: absolute;
   left: 0;
-  top: 203px;
-  width: 100vw;
+  width: 100%;
   z-index: 100;
   margin: 0;
-  padding: 0;
+  padding: 25px 0;
   font-weight: bold;
   text-align: center;
   
-  color: black;
+  color: #333;
   background-color: #BAD7F2; /* Title Color */
 }
 
@@ -120,7 +118,8 @@ body {
   display: block;
   text-align: center;
   font-size: 1.2em;
-  padding: 0 5px;
+  padding: 20px 5px;
+  margin: 0;
 }
 
 .source {
@@ -133,7 +132,7 @@ body {
   text-align: left;
   font-size: 11pt;
   padding: 40px;
-  white-space: pre-line;
+  white-space: pre-wrap;
 }
 
 a.source:visited {
@@ -152,12 +151,6 @@ a.source:visited {
   background-position: -72px 0 !important;
 }
 
-#header {
-  padding: 25px 0;
-  text-align: center;
-  color: #333;
-}
-
 /* Storymap title & subtitle */
 h1 {
   margin: 0;
@@ -170,7 +163,7 @@ h2 {
   font-weight: normal;
 }
 
-#header-select {
+#title-select {
   font-size: x-large;
   font-weight: inherit;
   font-family: inherit;
