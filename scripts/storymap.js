@@ -243,7 +243,7 @@ $(window).on('load', function() {
         });
       }
 
-      let links = c['Media Link'].split('\n');
+      let links = c['Media Link'] ? c['Media Link'].split('\n') : [];
       for (let link of links) {
         var $media = null;
         var isFirstMedia = ($mediaGroup.length == 0);
@@ -435,26 +435,31 @@ $(window).on('load', function() {
   }
 
   function initChapter(journeys, name) {
+    var $title = $('#title-select');
     /* Default title */
     if (name == null) {
-      $('<option>', {
-        text: 'Little Footprint',
-        selected: true,
-        disabled: true,
-        hidden: true
-      }).appendTo('#title-select');
+      $title.append(
+        $('<option>', {
+          text: 'Little Footprint',
+          selected: true,
+          disabled: true,
+          hidden: true
+        })
+      );
     }
 
     /* Add title list */
     for (let i in journeys) {
       let j = journeys[i];
       let isSelected = (j['Sheet Name'] == name);
-      $('<option>', {
-        text: j['Storymap Title'],
-        selected: isSelected
-      })
-      .data('name', j['Sheet Name'])
-      .appendTo('#title-select');
+      $title.append(
+        $('<option>', {
+          text: j['Storymap Title'],
+          selected: isSelected
+        })
+        .data('name', j['Sheet Name'])
+        .data('subtitle', j['Storymap Subtitle'])
+      );
 
       if (isSelected) {
         document.title = j['Storymap Title'];
@@ -463,8 +468,11 @@ $(window).on('load', function() {
     }
 
     /* Add title select callback */
-    $('#title-select').off('change').on('change', function() {
-      location.hash = '#' + $(this).find('option:selected').data('name');
+    $title.on('change', function() {
+      var $selected = $(this).find('option:selected');
+      location.hash = '#' + $selected.data('name');
+      document.title = $selected.text();
+      $('#subtitle').html(($selected.data('subtitle') || '') + '<br>');
     });
 
     /* Update chapter position */
