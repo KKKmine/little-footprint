@@ -210,7 +210,7 @@ $(window).on('load', function() {
 
       // Add Google map link button
       var mapButton = '';
-      if (c['Latitude'] && c['Longitude']) {
+      if (c['Marker'] != 'Hidden' && c['Latitude'] && c['Longitude']) {
         let googleMapUrl = 'https://www.google.com/maps/search/?api=1&query=' + c['Latitude'] + ',' + c['Longitude'] + '(' + c['Location'] + ')';
         mapButton = '<a href="' + googleMapUrl + '" target="_blank" class="map-link" c><i class="material-icons" style="color: ' + c['Marker Color'] + '";>place</i></a>';
       }
