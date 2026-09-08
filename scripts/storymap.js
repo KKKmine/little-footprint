@@ -1,3 +1,6 @@
+var TileProvider = 'Google.MapApi';
+var TileProviderApiKey = '';
+
 $(window).on('load', function() {
 
   var documentSettings = {};
@@ -519,15 +522,14 @@ $(window).on('load', function() {
     }).addTo(map);
     map.scrollWheelZoom.enabled();
 
-    /*changeAttribution();*/
+    changeCredit();
   }
 
   /* TODO */
   function initSummury(journeys) {
     $('#chapters').empty();
 
-    document.title = MapTitle;
-    $('#subtitle').html((MapSubtitle || '') + '<br>');
+    document.title = 'Little Footprint';
 
 /*
     for (let i in journeys) {
@@ -620,28 +622,19 @@ $(window).on('load', function() {
   /**
    * Changes map attribution (author, GitHub repo, email etc.) in bottom-right
    */
-  function changeAttribution() {
+  function changeCredit() {
+    var autherName = 'KKKmine';
+    var githubRepo = 'https://github.com/KKKmine/leaflet-storymaps-with-google-sheets';
+    var basedRepo = 'https://github.com/HandsOnDataViz/leaflet-storymaps-with-google-sheets';
+    var googleMapTilesURL = 'https://developers.google.com/maps/documentation/tile';
     var attributionHTML = $('.leaflet-control-attribution')[0].innerHTML;
-    var credit = 'View <a href="'
-      // Show Google Sheet URL if the variable exists and is not empty, otherwise link to Chapters.csv
-      + (typeof googleDocURL !== 'undefined' && googleDocURL ? googleDocURL : './csv/Chapters.csv')
-      + '" target="_blank">data</a>';
+    var credit = '';
 
-    var name = AuthorName;
-    var url = AuthorURL;
-
-    if (name && url) {
-      if (url.indexOf('@') > 0) { url = 'mailto:' + url; }
-      credit += ' by <a href="' + url + '">' + name + '</a> | ';
-    } else if (name) {
-      credit += ' by ' + name + ' | ';
-    } else {
-      credit += ' | ';
+    //credit += 'Based on <a href="' + basedRepo + '">HandsOnDataViz</a> · ';
+    credit += 'Created by <a href="' + githubRepo + '">' + autherName + '</a> · ';
+    if (TileProvider == 'Google.MapApi') {
+      credit += '<a href="' + googleMapTilesURL + '">Google Map</a> · ';
     }
-
-    credit += 'View <a href="' + GithubRepo + '">code</a>';
-    if (CodeCredit) credit += ' by ' + CodeCredit;
-    credit += ' with ';
     $('.leaflet-control-attribution')[0].innerHTML = credit + attributionHTML;
   }
 
