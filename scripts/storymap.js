@@ -109,8 +109,6 @@ $(window).on('load', function() {
   });
   
   function loadMarker(chapters) {
-    var content;
-    var chapterCount = 0;
 
     for (let i in chapters) {
       let c = chapters[i];
@@ -119,24 +117,13 @@ $(window).on('load', function() {
       let color = c['Marker Color'] || 'red';
 
       if (c['Marker'] != "Hidden" && !isNaN(lat) && !isNaN(lon)) {
-        if (c['Marker'] === 'Numbered') {
-          chapterCount += 1;
-          content = String(chapterCount);
-        } else if (c['Marker'] === 'Plain') {
-          content = '';
-        } else if (c['Marker'] !== '' && Number.isInteger(+c['Marker'])) {
-          chapterCount = +c['Marker'];
-          content = String(chapterCount);
-        } else {
-          content = c['Marker']
-        }
         let m = L.circleMarker([lat, lon], {
           radius: 6,
           fillColor: color,
           color: 'white',
           weight: 1,
-          opacity: c['Marker'] === 'Hidden' ? 0 : 0.9,
-          fillOpacity: c['Marker'] === 'Hidden' ? 0 : 0.9,
+          opacity: 0.9,
+          fillOpacity: 0.9,
         }).on('click', function() {
           chapterFocus(i, c);
 
@@ -174,7 +161,7 @@ $(window).on('load', function() {
       var c = chapters[i];
       var lat = parseFloat(c['Latitude']);
       var lon = parseFloat(c['Longitude']);
-      if (c['Marker'] != 'Hidden' && !isNaN(lat) && !isNaN(lon)) {
+      if (c['Marker'] === 'Line' && !isNaN(lat) && !isNaN(lon)) {
         if (point != null) {
           L.polyline([point, [lat, lon]], {
             color: c['Marker Color'],
